@@ -15,6 +15,8 @@ import {
   generateProgramReport,
   parseProgramUpload
 } from "../src/analyzer.js";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 const toolDefinitions = [
   {
@@ -149,6 +151,8 @@ app.use(helmet({
 app.use(express.json({
   limit: process.env.MAX_BODY_SIZE ?? "5mb"
 }));
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+app.use(express.static(path.join(__dirname, "../public")));
 app.use("/mcp", rateLimit({
   windowMs: 60000,
   limit: Number(process.env.MCP_RATE_LIMIT ?? 120)
@@ -161,12 +165,26 @@ app.get("/healthz", (_request, response) => {
   });
 });
 
-app.get("/", (_request, response) => {
-  response.json({
-    name: "Program Analyzer",
-    mcpEndpoint: "/mcp",
-    health: "/healthz"
-  });
+app.get("/api/info", (_request, response) => {
+  response.json({ name: "Program Analyzer", mcpEndpoint: "/mcp", health: "/healthz" });
+});
+
+app.post("/api/analyze", (request, response) => {
+  try {
+    const data = parseProgramUpload({ jsonText: JSON.stringify(request.body.data ?? {}) });
+    response.json({ analysis: analyzeProgram(data), report: generateProgramReport(data, request.body.title ?? "Program Dependency Analysis") });
+  } catch (error) {
+    response.status(400).json({ error: error.message });
+  }
+});
+
+app.post("/api/impact", (request, response) => {
+  try {
+    const data = parseProgramUpload({ jsonText: JSON.stringify(request.body.data ?? {}) });
+    response.json({ impact: analyzeCourseImpact(data, String(request.body.courseCode ?? "")) });
+  } catch (error) {
+    response.status(400).json({ error: error.message });
+  }
 });
 
 app.post("/mcp", async (request, response) => {
