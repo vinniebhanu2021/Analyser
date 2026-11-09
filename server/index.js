@@ -201,8 +201,9 @@ app.post("/mcp", async (request, response) => {
     await server.connect(transport);
     await transport.handleRequest(request, response, request.body);
   } catch (error) {
+    console.error("[MCP] Request failed:", error?.stack ?? error);
     if (!response.headersSent) {
-      response.status(500).json({ error: "MCP request failed" });
+      response.status(500).json({ error: "MCP request failed", detail: error?.message ?? String(error) });
     }
   } finally {
     await transport.close().catch(() => {});
