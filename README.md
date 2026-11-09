@@ -1,33 +1,21 @@
 # Program Analyzer
 
-Independent, open-source MCP service for academic course catalog and prerequisite dependency analysis.
-
-## Project status
-
-This repository contains an independent implementation and synthetic sample data. It deliberately excludes the professor-provided HTML application, original BSU Mathematics dataset, and professor-owned branding. Do not redistribute those materials without written permission.
-
-The source package is available at [program-analyzer-production-candidate.zip](./program-analyzer-production-candidate.zip). Extract the archive to obtain the Node.js project.
+An independently implemented, open-source MCP service for academic course catalog and prerequisite dependency analysis.
 
 ## Features
-
-- JSON and CSV course/prerequisite data parsing and validation
-- Prerequisite and dependent relationships
-- Topological levels for acyclic graphs
-- Circular prerequisite detection
-- Direct and transitive dependency inspection
-- Downstream course impact estimates
-- Markdown report generation
-- Stateless MCP service; uploaded data is not persisted by the service
+- Parse JSON or CSV course and prerequisite data
+- Build prerequisite/dependent relationships
+- Calculate topological levels for acyclic graphs
+- Detect circular prerequisite paths
+- Inspect direct and transitive dependencies
+- Estimate downstream structural impact
+- Generate Markdown reports
 
 ## Requirements
-
 - Node.js 20+
 - npm
 
-## Run locally
-
-After extracting the source archive:
-
+## Local development
 ```bash
 npm install
 npm test
@@ -38,12 +26,34 @@ npm start
 Health endpoint: `/healthz`  
 Streamable HTTP MCP endpoint: `/mcp`
 
-## Important limitations
+## Data format
+```json
+{
+  "COURSES": [{"code":"MATH 101","title":"Foundations of Mathematics"}],
+  "EDGES": [{"from":"MATH 101","to":"MATH 102","type":"prereq"}],
+  "DWF": []
+}
+```
+An edge points from prerequisite (`from`) to dependent course (`to`).
 
-This is a production candidate, not a fully deployed or directory-approved ChatGPT app. Remote hosting, endpoint interoperability tests, privacy/support/legal pages, security review, and OpenAI app-directory submission and approval are still required. Directory inclusion is not guaranteed.
+## MCP tools
+- `upload_program_data`
+- `analyze_program`
+- `get_course_dependencies`
+- `detect_dependency_cycles`
+- `analyze_course_impact`
+- `generate_program_report`
 
-The service analyzes only data supplied by the user; it does not connect to university SIS/catalog systems. Structural impact is an estimate, not academic advising.
+The service is stateless: pass the returned normalized data into later analysis calls. It does not persist uploaded datasets.
+
+## Ownership and scope
+This is an independent implementation with synthetic example data. The professor-provided HTML application, original BSU Mathematics dataset, and professor-owned branding are intentionally excluded. Do not redistribute them without written permission. No professor or university endorsement is implied.
+
+## Deployment and ChatGPT directory
+See [DEPLOYMENT.md](DEPLOYMENT.md). Public GitHub publication does not automatically publish a ChatGPT app. A stable hosted HTTPS MCP endpoint, verified publisher identity, product/support/privacy/terms URLs, testing evidence, and OpenAI review and approval are still required. Directory inclusion is not guaranteed.
+
+## Limitations
+This tool analyzes only data supplied by the user; it does not connect to university SIS/catalog systems. Impact estimates are structural and are not academic advising.
 
 ## License
-
-MIT applies only to independently authored code in the source archive. Third-party dependencies retain their own licenses. No professor-owned source, dataset, or university branding is included.
+MIT. Third-party dependencies retain their own licenses. The license applies only to independently authored project code.
