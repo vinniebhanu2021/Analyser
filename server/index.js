@@ -7,6 +7,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
   ListResourcesRequestSchema,
+  ListResourceTemplatesRequestSchema,
   ReadResourceRequestSchema
 } from "@modelcontextprotocol/sdk/types.js";
 import {
@@ -92,6 +93,7 @@ function createServer() {
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: mcpTools }));
   server.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources: [{ uri: UI_RESOURCE_URI, name: "Program Analyzer dashboard", mimeType: "text/html;profile=mcp-app" }] }));
+  server.setRequestHandler(ListResourceTemplatesRequestSchema, async () => ({ resourceTemplates: [] }));
   server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
     if (request.params.uri !== UI_RESOURCE_URI) throw new Error("Unknown resource.");
     return { contents: [{ uri: UI_RESOURCE_URI, mimeType: "text/html;profile=mcp-app", text: widgetHtml, _meta: { ui: { prefersBorder: true } } }] };
