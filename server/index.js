@@ -87,7 +87,7 @@ const mcpTools = toolDefinitions.map((definition) => ({
 function createServer() {
   const server = new Server(
     { name: "program-analyzer", version: "1.0.0" },
-    { capabilities: { tools: {} } }
+    { capabilities: { tools: {}, resources: {} } }
   );
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: mcpTools }));
