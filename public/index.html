@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Program Analyzer</title>
+<style>
+:root{font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;color:#172033;background:#f5f7fb}
+*{box-sizing:border-box}body{margin:0}header{background:#101c35;color:#fff;padding:28px max(22px,calc((100% - 1080px)/2))}
+header h1{margin:0 0 7px;font-size:28px}header p{margin:0;color:#cbd5e1}
+main{max-width:1080px;margin:26px auto;padding:0 20px 50px;display:grid;gap:18px}
+.panel{background:#fff;border:1px solid #e2e8f0;border-radius:15px;padding:20px;box-shadow:0 5px 20px #0f172a08}
+h2{font-size:18px;margin:0 0 14px}.muted{color:#64748b;font-size:13px}
+.drop{border:1.5px dashed #94a3b8;border-radius:12px;padding:25px;text-align:center;background:#f8fafc}
+input[type=file]{max-width:100%;margin:12px 0}button{border:0;border-radius:9px;padding:11px 16px;background:#2457d6;color:#fff;font-weight:650;cursor:pointer}button.secondary{background:#e8eefc;color:#1e40af}button:disabled{opacity:.5;cursor:wait}
+.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.metric{background:#f8fafc;border:1px solid #e2e8f0;padding:14px;border-radius:11px}.metric strong{display:block;font-size:26px}.metric span{font-size:12px;color:#64748b}
+table{width:100%;border-collapse:collapse;font-size:14px}td,th{text-align:left;padding:10px;border-bottom:1px solid #e2e8f0}th{color:#64748b;font-size:12px;text-transform:uppercase}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f8fafc;padding:14px;border-radius:10px;font-size:12px;max-height:360px;overflow:auto}
+.status{font-size:13px;margin-top:10px}.good{color:#087443}.bad{color:#b42318}
+footer{color:#64748b;text-align:center;font-size:12px;padding:20px}
+@media(max-width:650px){.metrics{grid-template-columns:repeat(2,1fr)}header h1{font-size:23px}}
+</style></head>
+<body>
+<header><h1>Program Analyzer</h1><p>Explore course prerequisites, dependency levels, cycles and downstream impact.</p></header>
+<main>
+<section class="panel"><h2>1. Upload program data</h2>
+<div class="drop"><strong>Choose a JSON or CSV file</strong><div class="muted">JSON should contain COURSES and EDGES arrays. CSV upload uses separate courses and edges files.</div>
+<input id="jsonFile" type="file" accept=".json,application/json"><div class="muted">For CSV, select both files:</div>
+<input id="coursesFile" type="file" accept=".csv,text/csv" aria-label="Courses CSV">
+<input id="edgesFile" type="file" accept=".csv,text/csv" aria-label="Edges CSV">
+</div><div class="actions"><button id="analyzeBtn">Analyze program</button><button class="secondary" id="sampleBtn">Load sample data</button></div><div id="status" class="status muted">No data loaded yet.</div></section>
+<section class="panel" id="results" hidden><h2>2. Analysis overview</h2><div class="metrics" id="metrics"></div><h2 style="margin-top:22px">Highest downstream impact</h2><div style="overflow:auto"><table><thead><tr><th>Course</th><th>Level</th><th>Prerequisites</th><th>Dependents</th><th>Downstream impact</th></tr></thead><tbody id="courses"></tbody></table></div>
+<div class="actions"><button id="downloadReport">Download Markdown report</button><button class="secondary" id="downloadJson">Download analysis JSON</button></div></section>
+<section class="panel" id="impactPanel" hidden><h2>3. Course impact explorer</h2><label for="courseSelect" class="muted">Choose a course</label><div class="actions"><select id="courseSelect" style="padding:10px;border:1px solid #cbd5e1;border-radius:8px;min-width:180px"></select><button id="impactBtn">Analyze impact</button></div><pre id="impactOutput">Select a course to inspect downstream impact.</pre></section>
+<section class="panel"><h2>Data format</h2><p class="muted">JSON example: { "COURSES": [{ "code": "MATH101", "title": "Basic Mathematics" }], "EDGES": [{ "from": "MATH101", "to": "MATH201", "type": "prereq" }] }. Each edge means the from-course is a prerequisite for the to-course.</p></section>
+<footer>Program Analyzer · Independent open-source implementation. Structural estimates do not model academic substitutions or institutional policy.</footer>
+</main>
+<script>
+let data=null,analysis=null,report="";
+const $=id=>document.getElementById(id);
+function setStatus(msg,ok=true){$("status").textContent=msg;$("status").className="status "+(ok?"good":"bad")}
+async function readFile(f){return await f.text()}
+async function loadData(){
+ const jf=$("jsonFile").files[0],cf=$("coursesFile").files[0],ef=$("edgesFile").files[0];
+ if(jf){data=JSON.parse(await readFile(jf))}
+ else if(cf&&ef){data={COURSES:parseCsv(await readFile(cf)),EDGES:parseCsv(await readFile(ef)).map(e=>({...e,type:e.type||"prereq"}))}}
+ else throw new Error("Choose a JSON file or both courses and edges CSV files.");
+}
+function parseCsv(text){const rows=text.trim().split(/\r?\n/);if(!rows[0])return[];const split=s=>{let out=[],v="",q=false;for(let i=0;i<s.length;i++){let c=s[i];if(c==='"'&&s[i+1]==='"'&&q){v+='"';i++}else if(c==='"')q=!q;else if(c===','&&!q){out.push(v);v=""}else v+=c}out.push(v);return out};const h=split(rows.shift()).map(x=>x.trim());return rows.map(line=>Object.fromEntries(split(line).map((v,i)=>[h[i],v])))}
+async function runAnalysis(){
+ try{$("analyzeBtn").disabled=true;setStatus("Validating and analyzing…");if(!data)await loadData();
+ const res=await fetch("/api/analyze",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({data})});
+ const body=await res.json();if(!res.ok)throw new Error(body.error||"Analysis failed");analysis=body.analysis;report=body.report;
+ render();setStatus("Analysis completed successfully.");}catch(e){setStatus(e.message,false)}finally{$("analyzeBtn").disabled=false}
+}
+function render(){
+ $("results").hidden=false;$("impactPanel").hidden=false;
+ const s=analysis.summary;
+ $("metrics").innerHTML=[["Courses",s.courses],["Prerequisite edges",s.prerequisiteEdges],["Dependency levels",s.topologicalLevels??"N/A"],["Cycles",analysis.cycles.length]].map(([k,v])=>'<div class="metric"><strong>'+v+'</strong><span>'+k+'</span></div>').join("");
+ $("courses").innerHTML=analysis.courses.map(c=>'<tr><td><strong>'+esc(c.code)+'</strong><br><span class="muted">'+esc(c.title)+'</span></td><td>'+ (c.level??"N/A")+'</td><td>'+c.directPrerequisites.length+'</td><td>'+c.directDependents.length+'</td><td>'+c.downstreamCount+'</td></tr>').join("");
+ $("courseSelect").innerHTML=data.COURSES.map(c=>'<option value="'+esc(c.code)+'">'+esc(c.code)+' — '+esc(c.title||"")+'</option>').join("");
+}
+function esc(v){return String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+$("analyzeBtn").onclick=runAnalysis;
+$("sampleBtn").onclick=()=>{data={COURSES:[{code:"MATH101",title:"Basic Mathematics"},{code:"MATH201",title:"Calculus"},{code:"MATH301",title:"Advanced Calculus"},{code:"STAT101",title:"Statistics"}],EDGES:[{from:"MATH101",to:"MATH201",type:"prereq"},{from:"MATH201",to:"MATH301",type:"prereq"},{from:"MATH101",to:"STAT101",type:"prereq"}]};$("jsonFile").value="";$("coursesFile").value="";$("edgesFile").value="";runAnalysis()};
+$("impactBtn").onclick=async()=>{try{const r=await fetch("/api/impact",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({data,courseCode:$("courseSelect").value})});const b=await r.json();if(!r.ok)throw new Error(b.error);$("impactOutput").textContent=JSON.stringify(b.impact,null,2)}catch(e){$("impactOutput").textContent=e.message}};
+function download(name,content,type){const a=document.createElement("a"),url=URL.createObjectURL(new Blob([content],{type}));a.href=url;a.download=name;a.click();URL.revokeObjectURL(url)}
+$("downloadReport").onclick=()=>download("program-dependency-report.md",report,"text/markdown");
+$("downloadJson").onclick=()=>download("program-analysis.json",JSON.stringify(analysis,null,2),"application/json");
+</script></body></html>
