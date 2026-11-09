@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "program-analyzer": {
+      "type": "http",
+      "url": "https://REPLACE-WITH-VERIFIED-HOST/mcp"
+    }
+  }
+}
