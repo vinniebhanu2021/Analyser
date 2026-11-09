@@ -5,7 +5,9 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import {
   CallToolRequestSchema,
-  ListToolsRequestSchema
+  ListToolsRequestSchema,
+  ListResourcesRequestSchema,
+  ReadResourceRequestSchema
 } from "@modelcontextprotocol/sdk/types.js";
 import {
   analyzeProgram,
@@ -64,6 +66,8 @@ const toolDefinitions = [
   }
 ];
 
+const UI_RESOURCE_URI = "ui://program-analyzer/overview-v1.html";
+const widgetHtml = "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><style>\nbody{font:14px system-ui,sans-serif;margin:0;padding:16px;color:var(--color);background:var(--background)}h2{margin:0 0 12px;font-size:19px}.muted{opacity:.7}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.metric{border:1px solid var(--border);border-radius:10px;padding:12px}.metric strong{display:block;font-size:23px}.metric span{font-size:11px;opacity:.7}table{border-collapse:collapse;width:100%;margin-top:14px}td,th{text-align:left;padding:9px;border-bottom:1px solid var(--border)}th{font-size:11px;opacity:.7}#empty{padding:16px;border:1px dashed var(--border);border-radius:10px}@media(max-width:480px){.grid{grid-template-columns:repeat(2,1fr)}}\n</style></head><body><h2>Program Analyzer</h2><div id=\"empty\" class=\"muted\">Run analyze_program to display dependency analysis here.</div><div id=\"view\" hidden><div class=\"grid\" id=\"metrics\"></div><h3>Course dependency overview</h3><table><thead><tr><th>Course</th><th>Level</th><th>Prerequisites</th><th>Dependents</th><th>Downstream</th></tr></thead><tbody id=\"rows\"></tbody></table><p id=\"cycles\" class=\"muted\"></p></div><script>\nconst empty=document.getElementById(\"empty\"),view=document.getElementById(\"view\");\nfunction esc(v){return String(v??\"\").replace(/[&<>\"']/g,c=>({\"&\":\"&amp;\",\"<\":\"&lt;\",\">\":\"&gt;\",'\"':\"&quot;\",\"'\":\"&#39;\"}[c]))}\nfunction render(d){d=d?.structuredContent??d?.toolOutput??d;if(d?.analysis)d=d.analysis;if(d?.result)d=d.result;if(!d?.summary||!Array.isArray(d.courses))return;empty.hidden=true;view.hidden=false;const s=d.summary;document.getElementById(\"metrics\").innerHTML=[[\"Courses\",s.courses],[\"Prerequisite edges\",s.prerequisiteEdges],[\"Levels\",s.topologicalLevels??\"N/A\"],[\"Cycles\",d.cycles?.length??0]].map(([k,v])=>'<div class=\"metric\"><strong>'+esc(v)+'</strong><span>'+k+'</span></div>').join(\"\");document.getElementById(\"rows\").innerHTML=d.courses.map(c=>'<tr><td><b>'+esc(c.code)+'</b><br><span class=\"muted\">'+esc(c.title)+'</span></td><td>'+esc(c.level??\"N/A\")+'</td><td>'+c.directPrerequisites.length+'</td><td>'+c.directDependents.length+'</td><td>'+c.downstreamCount+'</td></tr>').join(\"\");document.getElementById(\"cycles\").textContent=d.cycles?.length?d.cycles.length+\" circular dependency path(s) detected.\":\"No circular prerequisites detected.\"}\nwindow.addEventListener(\"message\",e=>{const m=e.data;if(m?.method===\"ui/notifications/tool-result\")render(m.params?.content??m.params?.structuredContent??m.params);});\nif(window.openai?.toolOutput)render(window.openai.toolOutput);\n</script></body></html>";
 const mcpTools = toolDefinitions.map((definition) => ({
   name: definition.name,
   description: definition.description,
@@ -76,7 +80,8 @@ const mcpTools = toolDefinitions.map((definition) => ({
     type: "object",
     properties: definition.properties,
     additionalProperties: false
-  }
+  },
+  ...(definition.name === "analyze_program" ? { _meta: { ui: { resourceUri: UI_RESOURCE_URI }, "openai/outputTemplate": UI_RESOURCE_URI } } : {})
 }));
 
 function createServer() {
@@ -85,9 +90,12 @@ function createServer() {
     { capabilities: { tools: {} } }
   );
 
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: mcpTools
-  }));
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: mcpTools }));
+  server.setRequestHandler(ListResourcesRequestSchema, async () => ({ resources: [{ uri: UI_RESOURCE_URI, name: "Program Analyzer dashboard", mimeType: "text/html;profile=mcp-app" }] }));
+  server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
+    if (request.params.uri !== UI_RESOURCE_URI) throw new Error("Unknown resource.");
+    return { contents: [{ uri: UI_RESOURCE_URI, mimeType: "text/html;profile=mcp-app", text: widgetHtml, _meta: { ui: { prefersBorder: true } } }] };
+  });
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     const args = request.params.arguments ?? {};
@@ -121,12 +129,8 @@ function createServer() {
       }
 
       return {
-        content: [{
-          type: "text",
-          text: typeof result === "string"
-            ? result
-            : JSON.stringify(result, null, 2)
-        }]
+        ...(request.params.name === "analyze_program" ? { structuredContent: result } : {}),
+        content: [{ type: "text", text: typeof result === "string" ? result : JSON.stringify(result, null, 2) }]
       };
     } catch (error) {
       return {
