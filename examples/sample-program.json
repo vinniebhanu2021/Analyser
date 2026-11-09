@@ -1,0 +1,14 @@
+{
+  "COURSES": [
+    {"code":"MATH 101","title":"Foundations of Mathematics"},
+    {"code":"MATH 102","title":"Calculus I"},
+    {"code":"MATH 201","title":"Calculus II"},
+    {"code":"STAT 201","title":"Introduction to Statistics"}
+  ],
+  "EDGES": [
+    {"from":"MATH 101","to":"MATH 102","type":"prereq"},
+    {"from":"MATH 102","to":"MATH 201","type":"prereq"},
+    {"from":"MATH 101","to":"STAT 201","type":"prereq"}
+  ],
+  "DWF": []
+}
