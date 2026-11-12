@@ -156,6 +156,9 @@ function createServer() {
 }
 
 const app = express();
+// Render terminates traffic through a single trusted reverse-proxy hop.
+// Trust that hop so express-rate-limit can safely identify client IPs.
+app.set("trust proxy", 1);
 app.disable("x-powered-by");
 app.use(helmet({
   contentSecurityPolicy: false,
