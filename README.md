@@ -3,7 +3,8 @@
 An independently implemented, open-source MCP service for academic course catalog and prerequisite dependency analysis.
 
 ## Features
-- Parse JSON or CSV course and prerequisite data
+- Parse JSON or RFC 4180-style CSV course and prerequisite data
+- Validate course rows, prerequisite references, duplicate edges, and unsupported edge types
 - Build prerequisite/dependent relationships
 - Calculate topological levels for acyclic graphs
 - Detect circular prerequisite paths
@@ -25,6 +26,8 @@ npm start
 
 Health endpoint: `/healthz`  
 Streamable HTTP MCP endpoint: `/mcp`
+
+For an internet-accessible personal deployment, set a long random `MCP_AUTH_TOKEN` environment secret. Requests to `/mcp` and `/api/*` must include `Authorization: Bearer <token>`. Leave it unset only for trusted local development.
 
 ## Data format
 ```json

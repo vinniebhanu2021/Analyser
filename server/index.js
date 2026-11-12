@@ -19,6 +19,7 @@ import {
   parseProgramUpload
 } from "../src/analyzer.js";
 import path from "node:path";
+import { timingSafeEqual } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 const toolDefinitions = [
@@ -34,7 +35,8 @@ const toolDefinitions = [
   {
     name: "analyze_program",
     description: "Analyze prerequisite levels, cycles and downstream impact.",
-    properties: { data: { type: "object" } }
+    properties: { data: { type: "object" } },
+    required: ["data"]
   },
   {
     name: "get_course_dependencies",
@@ -42,12 +44,14 @@ const toolDefinitions = [
     properties: {
       data: { type: "object" },
       courseCode: { type: "string" }
-    }
+    },
+    required: ["data", "courseCode"]
   },
   {
     name: "detect_dependency_cycles",
     description: "Find circular prerequisite paths.",
-    properties: { data: { type: "object" } }
+    properties: { data: { type: "object" } },
+    required: ["data"]
   },
   {
     name: "analyze_course_impact",
@@ -55,7 +59,8 @@ const toolDefinitions = [
     properties: {
       data: { type: "object" },
       courseCode: { type: "string" }
-    }
+    },
+    required: ["data", "courseCode"]
   },
   {
     name: "generate_program_report",
@@ -63,7 +68,8 @@ const toolDefinitions = [
     properties: {
       data: { type: "object" },
       title: { type: "string" }
-    }
+    },
+    required: ["data"]
   }
 ];
 
@@ -80,6 +86,7 @@ const mcpTools = toolDefinitions.map((definition) => ({
   inputSchema: {
     type: "object",
     properties: definition.properties,
+    ...(definition.required ? { required: definition.required } : {}),
     additionalProperties: false
   },
   ...(definition.name === "analyze_program" ? { _meta: { ui: { resourceUri: UI_RESOURCE_URI }, "openai/outputTemplate": UI_RESOURCE_URI } } : {})
@@ -157,6 +164,23 @@ app.use(helmet({
 app.use(express.json({
   limit: process.env.MAX_BODY_SIZE ?? "5mb"
 }));
+
+// Set MCP_AUTH_TOKEN on any internet-accessible deployment. The token is optional
+// for local development; when configured, protect API and MCP requests with Bearer auth.
+function requirePersonalToken(request, response, next) {
+  const expected = process.env.MCP_AUTH_TOKEN;
+  if (!expected) return next();
+  const supplied = request.get("authorization") ?? "";
+  const actual = supplied.startsWith("Bearer ") ? supplied.slice(7) : "";
+  const expectedBuffer = Buffer.from(expected);
+  const actualBuffer = Buffer.from(actual);
+  if (actualBuffer.length !== expectedBuffer.length || !timingSafeEqual(actualBuffer, expectedBuffer)) {
+    return response.status(401).json({ error: "Unauthorized. Provide a valid Bearer token." });
+  }
+  next();
+}
+app.use("/mcp", requirePersonalToken);
+app.use("/api", requirePersonalToken);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 app.use(express.static(path.join(__dirname, "../public")));
 app.use("/mcp", rateLimit({
