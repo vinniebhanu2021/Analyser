@@ -286,7 +286,7 @@ export function parseCSV(text) {
   if (!rows.length) return [];
 
   const headers = rows.shift().map((header, index) => {
-    const normalized = header.trim().replace(/^\\uFEFF/, "");
+    const normalized = header.trim().replace(/^\uFEFF/, "");
     if (!normalized) throw new Error("CSV column " + (index + 1) + " has an empty header.");
     return normalized;
   });
